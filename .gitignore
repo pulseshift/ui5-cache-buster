@@ -1,0 +1,13 @@
+### macOS ###
+*.DS_Store
+
+### Build Process ###
+/dist/
+/ui5/
+/.tmp/
+/.maps/
+/.download/
+
+### Node ###
+node_modules/
+*.log
