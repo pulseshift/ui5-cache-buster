@@ -1,6 +1,6 @@
 {
   "name": "ui5-cache-buster",
-  "version": "0.0.3",
+  "version": "0.0.6",
   "description": "A reliable cache-buster for OpenUI5.",
   "scripts": {
     "precommit": "lint-staged"
@@ -26,10 +26,6 @@
   "homepage": "https://github.com/pulseshift/ui5-cache-buster#readme",
   "main": "index.js",
   "devDependencies": {
-    "babel-cli": "^6.24.1",
-    "babel-preset-env": "^1.5.2",
-    "babel-preset-es2015": "^6.24.1",
-    "babel-preset-stage-0": "^6.24.1",
     "gulp-util": "^3.0.8",
     "husky": "^0.14.1",
     "lint-staged": "^4.0.0",

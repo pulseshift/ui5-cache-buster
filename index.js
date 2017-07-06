@@ -5,17 +5,14 @@
  *
  *  Licensed under the MIT License.
  *
- *  This file makes use of new JavaScript features.
- *  Babel handles this without us having to do anything. It just works.
- *  You can read more about the new JavaScript features here:
- *  https://babeljs.io/docs/learn-es2015/
- *
  */
 
-import gutil from 'gulp-util'
-import loaderUtils from 'loader-utils'
-import fs from 'fs'
-import path from 'path'
+const gutil = require('gulp-util')
+const loaderUtils = require('loader-utils')
+const fs = require('fs')
+const path = require('path')
+
+module.exports = ui5Bust
 
 /**
  * Hash UI5 module (app component) paths (content based) to enable cache buster:
@@ -35,7 +32,7 @@ import path from 'path'
  * @param {number} [oOptions.hash.maxLength] Maximum hash length.
  * @returns {Vinyl} Updated HTML file.
  */
-export default function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
+function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
   // hash generation options
   const { hash: oHashOptions } = oOptions
   const { type: HASH_TYPE = 'sha512' } = oHashOptions
