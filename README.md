@@ -59,8 +59,18 @@ jQuery.sap.getModulePath(
 // ./apps/cgfsybfu/assets/data/Products.json
 ```
 
-### Parameters
-- `file` ([Vinyl](https://github.com/gulpjs/vinyl)) Entry file must be the HTML file that contains the UI5 bootstrap.
+## Methods
+### `ui5Bust`
+```js
+ui5Bust(file, [options])
+```
+
+* `file` ([Vinyl](https://github.com/gulpjs/vinyl)) Entry file must be the HTML file that contains the UI5 bootstrap.
+* `options` (object, optional) The configuration options object.
+* `options.hash` (object, optional) The hash generation configuration object).
+* `options.hash.type` (string, optional) One of `sha1`, `md5`, `sha256`, `sha512` or any other node.js supported hash type (default: `sha512`).
+* `options.hash.digestType` (string, optional) One of `hex`, `base26`, `base32`, `base36`, `base49`, `base52`, `base58`, `base62`, `base64` (default: `base62`).
+* `options.hash.maxLength` (number, optional) The maximum hash length in chars (default: `8`).
 
 ### Outlook
 

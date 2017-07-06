@@ -17,11 +17,6 @@ import loaderUtils from 'loader-utils'
 import fs from 'fs'
 import path from 'path'
 
-// hash generation options
-const HASH_TYPE = 'sha512'
-const DIGEST_TYPE = 'base62'
-const MAX_LENGTH = 8
-
 /**
  * Hash UI5 module (app component) paths (content based) to enable cache buster:
  *
@@ -33,9 +28,20 @@ const MAX_LENGTH = 8
  *
  * The UI5 resource roots in the main HTML will be updated with the generated hashes.
  * @param {Vinyl} [oHTMLFile] Main HTML file.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.hash.type] Hash type.
+ * @param {string} [oOptions.hash.digestType] Digest type.
+ * @param {number} [oOptions.hash.maxLength] Maximum hash length.
  * @returns {Vinyl} Updated HTML file.
  */
-export default function ui5Bust(oHTMLFile) {
+export default function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
+  // hash generation options
+  const { hash: oHashOptions } = oOptions
+  const { type: HASH_TYPE = 'sha512' } = oHashOptions
+  const { digestType: DIGEST_TYPE = 'base62' } = oHashOptions
+  const { maxLength: MAX_LENGTH = 8 } = oHashOptions
+
   const sHTMLContent = oHTMLFile.contents.toString('utf8')
   // extract resource roots JSON string
   const sResourceRootMarker = 'data-sap-ui-resourceroots='
