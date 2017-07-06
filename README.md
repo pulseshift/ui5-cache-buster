@@ -4,7 +4,7 @@ Ensure your users are always enjoying the latest version of your app. OpenUI5 pr
 ## Install
 Install ui5-cache-buster as a development dependency:
 ```
-yarn add ui5-cache-buster --dev
+yarn add ui5-cache-buster@alpha --dev
 ```
 
 ## How it works
