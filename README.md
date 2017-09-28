@@ -34,6 +34,7 @@ ui5-cache-buster is designed as an agnostic node module and can be used standalo
 Example with gulp `4.0.0` (JavaScript ES6):
 ```js
 import gulp from 'gulp'
+import tap from 'gulp-tap'
 import ui5Bust from 'ui5-cache-buster'
 
 // hash UI5 module paths to enable cache buster

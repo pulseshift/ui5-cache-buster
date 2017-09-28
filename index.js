@@ -76,10 +76,10 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
       : null
     const oManifestJSON = oManifestFileContent
       ? JSON.parse(oManifestFileContent)
-      : { 'sap.ui5': null }
-    const aResourceKeys = oManifestJSON['sap.ui5'].resources
-      ? Object.keys(oManifestJSON['sap.ui5'].resources)
-      : []
+      : { 'sap.ui5': {} }
+    const { 'sap.ui5': oUI5Config = {} } = oManifestJSON
+    const { resources: oResources = [] } = oUI5Config
+    const aResourceKeys = Object.keys(oResources)
     const aDependedResourceContents = aResourceKeys.reduce(
       (aContentsList, sResourceKey) => {
         return aContentsList.concat(
@@ -123,7 +123,11 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
     )
 
     // rename resource root folder
-    fs.renameSync(sResolvedAppPath, sNewHashedAppPath)
+    try {
+      fs.renameSync(sResolvedAppPath, sNewHashedAppPath)
+    } catch (e) {
+      // skip renaming
+    }
 
     // update resource roots
     oNewResouceRoots[sAppName] = sNewHash
