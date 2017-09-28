@@ -77,9 +77,9 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
     const oManifestJSON = oManifestFileContent
       ? JSON.parse(oManifestFileContent)
       : { 'sap.ui5': {} }
-    const { 'sap.ui5': oUI5Config = {} } = oManifestJSON
-    const { resources: oResources = [] } = oUI5Config
-    const aResourceKeys = Object.keys(oResources)
+    const aResourceKeys = oManifestJSON['sap.ui5'].resources
+      ? Object.keys(oManifestJSON['sap.ui5'].resources)
+      : []
     const aDependedResourceContents = aResourceKeys.reduce(
       (aContentsList, sResourceKey) => {
         return aContentsList.concat(
