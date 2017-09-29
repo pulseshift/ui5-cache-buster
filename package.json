@@ -1,6 +1,6 @@
 {
   "name": "ui5-cache-buster",
-  "version": "0.0.12",
+  "version": "0.1.0",
   "description": "A reliable cache-buster for OpenUI5.",
   "scripts": {
     "precommit": "lint-staged"
