@@ -17,9 +17,9 @@ ui5-cache-buster will parse the [UI5 resource roots](https://openui5.hana.ondema
     "my.demo.app": "./apps/my-demo-app"
   }' />
 ```
-From there the project structure will be injected. At the time, the cache buster only supports UI5 app components as resource roots, but all other artefacts (UI5 libraries, UI5 themes and non UI5 assets) will be added soon.
+From there the project structure will be injected. At the time, the cache buster supports *UI5 app components*, *UI5 control libraries* and *asset-roots* as resources as well as *theme roots*.
 
-Therefore the `Component-preload.js` and resources listed in `manifest.json` (contained in `Component-preload.js` as well) will be read to create a deterministic hash based on the file contents. The app path and the resource roots will then be updated with the hash:
+For example. if an app component is identified, the `Component-preload.js` and resources listed in `manifest.json` (contained in `Component-preload.js` as well) will be read to create a deterministic hash based on the file contents. The app path and the resource roots will then be updated with the hash:
 ```html
 data-sap-ui-resourceroots='{
   "my.demo.app": "./apps/cgfsybfu"
@@ -73,14 +73,6 @@ ui5Bust(file, [options])
 * `options.hash.digestType` (string, optional) One of `hex`, `base26`, `base32`, `base36`, `base49`, `base52`, `base58`, `base62`, `base64` (default: `base62`).
 * `options.hash.maxLength` (number, optional) The maximum hash length in chars (default: `8`).
 
-### Outlook
-
-Here is a brief overview on what we are working right know and what will follow, soon. We are interested to hear your opinion on what should follow next.
-
-Current idea backlog (unordered):
-- Support for custom UI5 control libraries
-- Support for custom UI5 themes
-- Support for non-UI5 resources like an assets directory
 
 ### License
 

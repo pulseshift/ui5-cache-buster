@@ -38,8 +38,17 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
   const { type: HASH_TYPE = 'sha512' } = oHashOptions
   const { digestType: DIGEST_TYPE = 'base62' } = oHashOptions
   const { maxLength: MAX_LENGTH = 8 } = oHashOptions
+  const oValidatedHashOptions = {
+    HASH_TYPE,
+    DIGEST_TYPE,
+    MAX_LENGTH
+  }
 
   const sHTMLContent = oHTMLFile.contents.toString('utf8')
+
+  // *
+  // START PART ONE: CASH BUST RESOURCE ROOTS
+
   // extract resource roots JSON string
   const sResourceRootMarker = 'data-sap-ui-resourceroots='
   const iJSONStartsAt =
@@ -47,99 +56,186 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
   const iJSONEndsAt = sHTMLContent.indexOf("'", iJSONStartsAt)
   const sResourceRoots = sHTMLContent.substring(iJSONStartsAt, iJSONEndsAt)
   const oResouceRoots = JSON.parse(sResourceRoots)
-  const aAppNames = Object.keys(oResouceRoots)
+  const aModuleNames = Object.keys(oResouceRoots)
 
-  // loop at apps and modify relevant directories and files
-  const oNewResouceRoots = aAppNames.reduce((oNewResouceRoots, sAppName) => {
+  // loop at modules and modify relevant directories and files
+  const oNewResouceRoots = aModuleNames.reduce(
+    (oNewResouceRoots, sModuleName) => {
+      // do something...
+      const sModulePath = oResouceRoots[sModuleName]
+      const sResolvedModulePath = path.resolve(
+        oHTMLFile.cwd,
+        path.dirname(oHTMLFile.path),
+        sModulePath
+      )
+
+      // check if module is of type APP
+      const sPreloadPath = path.resolve(
+        sResolvedModulePath,
+        'Component-preload.js'
+      )
+      const isUi5App = fs.existsSync(sPreloadPath)
+
+      // check if module is of type LIB
+      const sLibPreloadPath = path.resolve(
+        sResolvedModulePath,
+        'library-preload.js'
+      )
+      const isUi5Lib = fs.existsSync(sLibPreloadPath)
+
+      // check if module is of type ASSETS
+      const isAssetsDir = !isUi5App && !isUi5Lib
+
+      // generate hash
+      let sNewHash = ''
+      try {
+        sNewHash = (() => {
+          if (isUi5App) {
+            return (
+              _getUi5AppHash(
+                sResolvedModulePath,
+                sPreloadPath,
+                oValidatedHashOptions
+              ) || null
+            )
+          } else if (isUi5Lib) {
+            return (
+              _getUi5LibHash(
+                sResolvedModulePath,
+                sLibPreloadPath,
+                oValidatedHashOptions
+              ) || null
+            )
+          } else if (isAssetsDir) {
+            return (
+              _getAssetsHash(sResolvedModulePath, oValidatedHashOptions) || null
+            )
+          }
+        })()
+      } catch (e) {
+        sNewHash = null
+      }
+
+      // compose new module path
+      const aPathChain = sModulePath.split('/')
+      const sOriginDirectory = aPathChain[aPathChain.length - 1]
+      const sNewHashedModulePath = sNewHash
+        ? sResolvedModulePath.replace(
+            new RegExp(`${sOriginDirectory}$`),
+            sNewHash
+          )
+        : sResolvedModulePath
+      const sNewHashedPath = sNewHash
+        ? sModulePath.replace(new RegExp(`${sOriginDirectory}$`), sNewHash)
+        : sModulePath
+
+      // rename resource root folder
+      try {
+        fs.renameSync(sResolvedModulePath, sNewHashedModulePath)
+      } catch (e) {
+        // skip renaming
+      }
+
+      // update resource roots
+      oNewResouceRoots[sModuleName] = sNewHashedPath
+      return oNewResouceRoots
+    },
+    {}
+  )
+
+  // END PART ONE: CASH BUST RESOURCE ROOTS
+  // *
+
+  // *
+  // START PART TWO: CASH BUST THEME ROOTS
+
+  // extract resource roots JSON string
+  const sThemeRootMarker = 'data-sap-ui-theme-roots='
+  const iThemeRootJSONStartsAt =
+    sHTMLContent.indexOf(sThemeRootMarker) + sThemeRootMarker.length + 1
+  const iThemeRootJSONEndsAt = sHTMLContent.indexOf("'", iThemeRootJSONStartsAt)
+  const sThemeRoots = sHTMLContent.substring(
+    iThemeRootJSONStartsAt,
+    iThemeRootJSONEndsAt
+  )
+  const oThemeRoots = JSON.parse(sThemeRoots)
+  const aThemeNames = Object.keys(oThemeRoots)
+
+  // loop at theme roots and modify relevant directories and files
+  const oNewThemeRoots = aThemeNames.reduce((oNewThemeRoots, sThemeName) => {
     // do something...
-    const sAppPath = oResouceRoots[sAppName]
-    const sResolvedAppPath = path.resolve(
+    const sThemeRootPath = oThemeRoots[sThemeName]
+    const sResolvedThemeRootPath = path.resolve(
       oHTMLFile.cwd,
       path.dirname(oHTMLFile.path),
-      sAppPath
+      sThemeRootPath
     )
 
-    // TODO: at the time the cache buster assumes that all resource roots are app components
-    // a fallback should be added to create a hash based on all files if no preload was found
+    // check if theme root has a valid starting structure
+    const isValidThemeRoot = fs.existsSync(sResolvedThemeRootPath)
 
-    // read relevant resources for hash generation
-    const sPreloadPath = path.resolve(sResolvedAppPath, 'Component-preload.js')
-    const oPreloadFileContent = fs.existsSync(sPreloadPath)
-      ? fs.readFileSync(sPreloadPath, 'utf8')
-      : null
+    // generate hash
+    let sNewHash = ''
+    try {
+      sNewHash = isValidThemeRoot
+        ? _getThemeRootHash(
+            sResolvedThemeRootPath,
+            sThemeName,
+            oValidatedHashOptions
+          ) || null
+        : null
+    } catch (e) {
+      sNewHash = null
+    }
 
-    // some resources will be requested additionally to 'Component-preload.js'
-    // fortunately they 'should' be listed in manifest.json, therefore, we will look them up there
-    const sManifestPath = path.resolve(sResolvedAppPath, 'manifest.json')
-    const oManifestFileContent = fs.existsSync(sManifestPath)
-      ? fs.readFileSync(sManifestPath, 'utf8')
-      : null
-    const oManifestJSON = oManifestFileContent
-      ? JSON.parse(oManifestFileContent)
-      : { 'sap.ui5': {} }
-    const aResourceKeys = oManifestJSON['sap.ui5'].resources
-      ? Object.keys(oManifestJSON['sap.ui5'].resources)
-      : []
-    const aDependedResourceContents = aResourceKeys.reduce(
-      (aContentsList, sResourceKey) => {
-        return aContentsList.concat(
-          oManifestJSON['sap.ui5'].resources[sResourceKey].map(oResource =>
-            fs.readFileSync(
-              path.resolve(sResolvedAppPath, oResource.uri),
-              'utf8'
-            )
-          )
-        )
-      },
-      []
-    )
-
-    // generate hash based on resource contents of the app,
-    // but keep app path if no contents for hash generation have been found
-    const aBufferList = aDependedResourceContents
-      .concat(oPreloadFileContent ? oPreloadFileContent : [])
-      .map(oContent => new Buffer(oContent))
-    const sNewHash =
-      aBufferList.length === 0
-        ? sAppPath
-        : loaderUtils
-            .getHashDigest(
-              Buffer.concat(aBufferList),
-              HASH_TYPE,
-              DIGEST_TYPE,
-              MAX_LENGTH
-            )
-            // The path part is or is not case sensitive, depending on the server environment and server.
-            // Typically Windows machines are case insensitive, while Linux machines are case sensitive.
-            // To be on the safe side, we only will use lower case paths.
-            .toLowerCase()
-
-    // compose new app path
-    const aPathChain = sAppPath.split('/')
+    // compose new theme root path
+    const aPathChain = sThemeRootPath
+      .replace(new RegExp('/UI5$'), '')
+      .split('/')
     const sOriginDirectory = aPathChain[aPathChain.length - 1]
-    const sNewHashedAppPath = sResolvedAppPath.replace(
-      new RegExp(`${sOriginDirectory}$`),
-      sNewHash
-    )
+    const sNewHashedThemeRootPath = sNewHash
+      ? sResolvedThemeRootPath.replace(
+          new RegExp(`${sOriginDirectory}/UI5`),
+          sNewHash
+        )
+      : sResolvedThemeRootPath
+    const sNewHashedPath = sNewHash
+      ? sThemeRootPath.replace(
+          new RegExp(`${sOriginDirectory}/UI5`),
+          `${sNewHash}/UI5`
+        )
+      : sThemeRootPath
 
     // rename resource root folder
     try {
-      fs.renameSync(sResolvedAppPath, sNewHashedAppPath)
+      fs.renameSync(
+        sResolvedThemeRootPath.replace(new RegExp('/UI5$'), ''),
+        sNewHashedThemeRootPath
+      )
     } catch (e) {
       // skip renaming
     }
 
     // update resource roots
-    oNewResouceRoots[sAppName] = sNewHash
-    return oNewResouceRoots
+    oNewThemeRoots[sThemeName] = sNewHashedPath
+    return oNewThemeRoots
   }, {})
+
+  // END PART TWO: CASH BUST THEME ROOTS
+  // *
 
   // update resource roots in HTML file
   const sStringifiedResourceRoots = JSON.stringify(oNewResouceRoots)
-  const sNewHTMLContent = sHTMLContent.replace(
-    /data-sap-ui-resourceroots=(.*)>/g,
-    `data-sap-ui-resourceroots='${sStringifiedResourceRoots}'>`
-  )
+  const sStringifiedThemeRoots = JSON.stringify(oNewThemeRoots)
+  const sNewHTMLContent = sHTMLContent
+    .replace(
+      /data-sap-ui-resourceroots='(.*)'/g,
+      `data-sap-ui-resourceroots='${sStringifiedResourceRoots}'`
+    )
+    .replace(
+      /data-sap-ui-theme-roots='(.*)'/g,
+      `data-sap-ui-theme-roots='${sStringifiedThemeRoots}'`
+    )
   oHTMLFile.contents = new Buffer(sNewHTMLContent)
 
   // success message
@@ -157,4 +253,175 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
 
   // return updated index.html again
   return oHTMLFile
+}
+
+/**
+ * Generate hash for UI5 app component.
+ * @param {string} [sResolvedModulePath] Module path.
+ * @param {string} [sPreloadPath] Path to Component-preload.js.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.HASH_TYPE] Hash type.
+ * @param {string} [oOptions.DIGEST_TYPE] Digest type.
+ * @param {number} [oOptions.MAX_LENGTH] Maximum hash length.
+ * @returns {string|null} Generated hash.
+ */
+function _getUi5AppHash(sResolvedModulePath, sPreloadPath, oOptions) {
+  // read relevant resources for hash generation
+  const oPreloadFileContent = fs.readFileSync(sPreloadPath, 'utf8')
+
+  // some resources will be requested additionally to 'Component-preload.js'
+  // fortunately they 'should' be listed in manifest.json, therefore, we will look them up there
+  const sManifestPath = path.resolve(sResolvedModulePath, 'manifest.json')
+  const oManifestFileContent = fs.existsSync(sManifestPath)
+    ? fs.readFileSync(sManifestPath, 'utf8')
+    : null
+  const oManifestJSON = oManifestFileContent
+    ? JSON.parse(oManifestFileContent)
+    : { 'sap.ui5': {} }
+  const aResourceKeys = oManifestJSON['sap.ui5'].resources
+    ? Object.keys(oManifestJSON['sap.ui5'].resources)
+    : []
+  const aDependedResourceContents = aResourceKeys.reduce(
+    (aContentsList, sResourceKey) => {
+      return aContentsList.concat(
+        oManifestJSON['sap.ui5'].resources[sResourceKey].map(oResource =>
+          fs.readFileSync(
+            path.resolve(sResolvedModulePath, oResource.uri),
+            'utf8'
+          )
+        )
+      )
+    },
+    []
+  )
+
+  // generate hash based on resource contents of the app
+  const aBufferList = aDependedResourceContents
+    .concat(oPreloadFileContent ? oPreloadFileContent : [])
+    .map(oContent => new Buffer(oContent))
+  const sNewHash = _createHash(aBufferList, oOptions)
+
+  return sNewHash
+}
+
+/**
+ * Generate hash for UI5 control library.
+ * @param {string} [sResolvedModulePath] Module path.
+ * @param {string} [sLibPreloadPath] Path to library-preload.js.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.HASH_TYPE] Hash type.
+ * @param {string} [oOptions.DIGEST_TYPE] Digest type.
+ * @param {number} [oOptions.MAX_LENGTH] Maximum hash length.
+ * @returns {string|null} Generated hash.
+ */
+function _getUi5LibHash(sResolvedModulePath, sLibPreloadPath, oOptions) {
+  // read relevant resources for hash generation
+  const oLibPreloadFileContent = fs.readFileSync(sLibPreloadPath, 'utf8')
+
+  // generate hash based on resource contents of the library
+  const aBufferList = [oLibPreloadFileContent].map(
+    oContent => new Buffer(oContent)
+  )
+  const sNewHash = _createHash(aBufferList, oOptions)
+
+  return sNewHash
+}
+
+/**
+ * Generate hash for directory with assets (all content is taken into account).
+ * @param {string} [sResolvedModulePath] Module path.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.HASH_TYPE] Hash type.
+ * @param {string} [oOptions.DIGEST_TYPE] Digest type.
+ * @param {number} [oOptions.MAX_LENGTH] Maximum hash length.
+ * @returns {string|null} Generated hash.
+ */
+function _getAssetsHash(sResolvedModulePath, oOptions) {
+  // read relevant resources for hash generation
+  const aAssetContents = _readAllFiles(sResolvedModulePath)
+
+  // generate hash based on resource contents
+  const aBufferList = aAssetContents.map(oContent => new Buffer(oContent))
+  const sNewHash = _createHash(aBufferList, oOptions)
+
+  return sNewHash
+}
+
+/**
+ * Generate hash for theme roots directory.
+ * @param {string} [sThemeRootPath] Theme root path.
+ * @param {string} [sThemeName] Theme name.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.HASH_TYPE] Hash type.
+ * @param {string} [oOptions.DIGEST_TYPE] Digest type.
+ * @param {number} [oOptions.MAX_LENGTH] Maximum hash length.
+ * @returns {string|null} Generated hash.
+ */
+function _getThemeRootHash(sThemeRootPath, sThemeName, oOptions) {
+  // read relevant resources for hash generation
+  const aAssetContents = _readAllFiles(sThemeRootPath)
+
+  // generate hash based on library CSS files in theme root
+  const aBufferList = aAssetContents.map(oContent => new Buffer(oContent))
+  const sNewHash = _createHash(aBufferList, oOptions)
+
+  return sNewHash
+}
+
+/**
+ * Helper function to read directories recursively.
+ * @param {string} [sDir] Directory.
+ * @param {Array.string} [aWhitelist] List of file names as whitelist.
+ * @returns {Array.string} List of read file contents.
+ */
+function _readAllFiles(sDir = '', aWhitelist = []) {
+  // read all files in current directory
+  const aFiles = fs.readdirSync(sDir)
+
+  // loop at all files
+  const aContents = aFiles.reduce((aContents, sFileName) => {
+    // get file stats
+    const oFile = fs.statSync(`${sDir}/${sFileName}`)
+    if (oFile.isDirectory()) {
+      // append files of directory to list
+      return aContents.concat(_readAllFiles(`${sDir}/${sFileName}`))
+    }
+
+    // append file content to list (if contained in whitelist)
+    return aWhitelist.length === 0 || aWhitelist.indexOf(sFileName) !== -1
+      ? aContents.concat(fs.readFileSync(`${sDir}/${sFileName}`, 'utf8'))
+      : aContents
+  }, [])
+
+  return aContents
+}
+
+/**
+ * Generate hash by binary content.
+ * @param {Array.Buffer} [aBufferList] Buffer list with binary content.
+ * @param {Object} [oOptions] Cach buster options.
+ * @param {Object} [oOptions.hash] Hash generation options.
+ * @param {string} [oOptions.HASH_TYPE] Hash type.
+ * @param {string} [oOptions.DIGEST_TYPE] Digest type.
+ * @param {number} [oOptions.MAX_LENGTH] Maximum hash length.
+ * @returns {string|null} Generated hash.
+ */
+function _createHash(aBufferList, { HASH_TYPE, DIGEST_TYPE, MAX_LENGTH }) {
+  // The path part is or is not case sensitive, depending on the server environment and server.
+  // Typically Windows machines are case insensitive, while Linux machines are case sensitive.
+  // To be on the safe side, we only will use lower case paths.
+  return aBufferList.length > 0
+    ? loaderUtils
+        .getHashDigest(
+          Buffer.concat(aBufferList),
+          HASH_TYPE,
+          DIGEST_TYPE,
+          MAX_LENGTH
+        )
+        .toLowerCase()
+    : null
 }
