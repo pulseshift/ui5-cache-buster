@@ -1,4 +1,6 @@
 # ⚡️ ui5-cache-buster *(alpha)*
+
+[![Greenkeeper badge](https://badges.greenkeeper.io/pulseshift/ui5-cache-buster.svg)](https://greenkeeper.io/)
 Ensure your users are always enjoying the latest version of your app. OpenUI5 provides only [solutions proprietary for SAP Gateway and SAP Cloud Platform](https://openui5.hana.ondemand.com/#docs/guide/91f080966f4d1014b6dd926db0e91070.html). With this project, we created a more reliable mechanism that is open source and available for any environment.
 
 ## Install
