@@ -411,17 +411,19 @@ function _readAllFiles(sDir = '', aWhitelist = []) {
  * @returns {string|null} Generated hash.
  */
 function _createHash(aBufferList, { HASH_TYPE, DIGEST_TYPE, MAX_LENGTH }) {
-  // The path part is or is not case sensitive, depending on the server environment and server.
-  // Typically Windows machines are case insensitive, while Linux machines are case sensitive.
-  // To be on the safe side, we only will use lower case paths.
-  return aBufferList.length > 0
+  // very important to sort buffer list before creating hash!!
+  const aSortedBufferList = (aBufferList || []).sort()
+
+  // create and return hash
+  return aSortedBufferList.length > 0
     ? loaderUtils
         .getHashDigest(
-          Buffer.concat(aBufferList),
+          Buffer.concat(aSortedBufferList),
           HASH_TYPE,
           DIGEST_TYPE,
           MAX_LENGTH
         )
+        // Windows machines are case insensitive while Linux machines are, so we only will use lower case paths
         .toLowerCase()
     : null
 }
