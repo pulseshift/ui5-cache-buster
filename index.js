@@ -11,6 +11,7 @@ const gutil = require('gulp-util')
 const loaderUtils = require('loader-utils')
 const fs = require('fs')
 const path = require('path')
+const _ = require('lodash')
 
 module.exports = ui5Bust
 
@@ -88,33 +89,29 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
 
       // generate hash
       let sNewHash = ''
-      try {
-        sNewHash = (() => {
-          if (isUi5App) {
-            return (
-              _getUi5AppHash(
-                sResolvedModulePath,
-                sPreloadPath,
-                oValidatedHashOptions
-              ) || null
-            )
-          } else if (isUi5Lib) {
-            return (
-              _getUi5LibHash(
-                sResolvedModulePath,
-                sLibPreloadPath,
-                oValidatedHashOptions
-              ) || null
-            )
-          } else if (isAssetsDir) {
-            return (
-              _getAssetsHash(sResolvedModulePath, oValidatedHashOptions) || null
-            )
-          }
-        })()
-      } catch (e) {
-        sNewHash = null
-      }
+      sNewHash = (() => {
+        if (isUi5App) {
+          return (
+            _getUi5AppHash(
+              sResolvedModulePath,
+              sPreloadPath,
+              oValidatedHashOptions
+            ) || null
+          )
+        } else if (isUi5Lib) {
+          return (
+            _getUi5LibHash(
+              sResolvedModulePath,
+              sLibPreloadPath,
+              oValidatedHashOptions
+            ) || null
+          )
+        } else if (isAssetsDir) {
+          return (
+            _getAssetsHash(sResolvedModulePath, oValidatedHashOptions) || null
+          )
+        }
+      })()
 
       // compose new module path
       const aPathChain = sModulePath.split('/')
@@ -122,19 +119,22 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
       const sNewHashedModulePath = sNewHash
         ? sResolvedModulePath.replace(
             new RegExp(`${sOriginDirectory}$`),
-            sNewHash
+            sOriginDirectory + '-' + sNewHash
           )
         : sResolvedModulePath
-      const sNewHashedPath = sNewHash
-        ? sModulePath.replace(new RegExp(`${sOriginDirectory}$`), sNewHash)
-        : sModulePath
+      const sNewHashedPath = sModulePath.replace(
+        new RegExp(`${sOriginDirectory}$`),
+        sOriginDirectory + '-' + sNewHash
+      )
 
       // rename resource root folder
-      try {
-        fs.renameSync(sResolvedModulePath, sNewHashedModulePath)
-      } catch (e) {
-        // skip renaming
-      }
+      gutil.log(
+        'ui5-cache-buster: renaming: ',
+        path.relative(__dirname, sResolvedModulePath),
+        ' ==> ',
+        path.relative(__dirname, sNewHashedModulePath)
+      )
+      fs.renameSync(sResolvedModulePath, sNewHashedModulePath)
 
       // update resource roots
       oNewResouceRoots[sModuleName] = sNewHashedPath
@@ -148,6 +148,12 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
 
   // *
   // START PART TWO: CASH BUST THEME ROOTS
+
+  /**
+   * NOTE: Careful in the following URLs from index.html (using forwards slashes)
+   * and local file paths (using forward OR backward slashes depending on the OS are mixed)
+   * In addition both chars are special characters in the context of javascript regex and/or string literals.
+   */
 
   // extract resource roots JSON string
   const sThemeRootMarker = 'data-sap-ui-theme-roots='
@@ -176,45 +182,41 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
 
     // generate hash
     let sNewHash = ''
-    try {
-      sNewHash = isValidThemeRoot
-        ? _getThemeRootHash(
-            sResolvedThemeRootPath,
-            sThemeName,
-            oValidatedHashOptions
-          ) || null
-        : null
-    } catch (e) {
-      sNewHash = null
-    }
+    sNewHash = isValidThemeRoot
+      ? _getThemeRootHash(
+          sResolvedThemeRootPath,
+          sThemeName,
+          oValidatedHashOptions
+        ) || null
+      : null
 
     // compose new theme root path
     const aPathChain = sThemeRootPath
       .replace(new RegExp('/UI5$'), '')
       .split('/')
     const sOriginDirectory = aPathChain[aPathChain.length - 1]
-    const sNewHashedThemeRootPath = sNewHash
-      ? sResolvedThemeRootPath.replace(
-          new RegExp(`${sOriginDirectory}/UI5`),
-          sNewHash
-        )
-      : sResolvedThemeRootPath
-    const sNewHashedPath = sNewHash
-      ? sThemeRootPath.replace(
-          new RegExp(`${sOriginDirectory}/UI5`),
-          `${sNewHash}/UI5`
-        )
-      : sThemeRootPath
+    const sNewHashedThemeRootPath = sResolvedThemeRootPath.replace(
+      new RegExp(`${sOriginDirectory}${_.escapeRegExp(path.sep)}UI5`),
+      sOriginDirectory + '-' + sNewHash
+    )
+    const sNewHashedPath = sThemeRootPath.replace(
+      new RegExp(`${sOriginDirectory}/UI5`),
+      `${sOriginDirectory}-${sNewHash}/UI5`
+    )
 
     // rename resource root folder
-    try {
-      fs.renameSync(
-        sResolvedThemeRootPath.replace(new RegExp('/UI5$'), ''),
-        sNewHashedThemeRootPath
-      )
-    } catch (e) {
-      // skip renaming
-    }
+    let sPathBefore = sResolvedThemeRootPath.replace(
+      new RegExp(`(\\\\|/)UI5$`),
+      ''
+    )
+    gutil.log(
+      'ui5-cache-buster: renaming: ',
+      path.relative(__dirname, sPathBefore),
+      ' ==> ',
+      path.relative(__dirname, sNewHashedThemeRootPath)
+    )
+
+    fs.renameSync(sPathBefore, sNewHashedThemeRootPath)
 
     // update resource roots
     oNewThemeRoots[sThemeName] = sNewHashedPath
@@ -236,7 +238,7 @@ function ui5Bust(oHTMLFile, oOptions = { hash: {} }) {
       /data-sap-ui-theme-roots='(.*)'/g,
       `data-sap-ui-theme-roots='${sStringifiedThemeRoots}'`
     )
-  oHTMLFile.contents = new Buffer(sNewHTMLContent)
+  oHTMLFile.contents = Buffer.from(sNewHTMLContent)
 
   // success message
   gutil.log(
@@ -299,7 +301,7 @@ function _getUi5AppHash(sResolvedModulePath, sPreloadPath, oOptions) {
   // generate hash based on resource contents of the app
   const aBufferList = aDependedResourceContents
     .concat(oPreloadFileContent ? oPreloadFileContent : [])
-    .map(oContent => new Buffer(oContent))
+    .map(oContent => Buffer.from(oContent))
   const sNewHash = _createHash(aBufferList, oOptions)
 
   return sNewHash
@@ -321,8 +323,8 @@ function _getUi5LibHash(sResolvedModulePath, sLibPreloadPath, oOptions) {
   const oLibPreloadFileContent = fs.readFileSync(sLibPreloadPath, 'utf8')
 
   // generate hash based on resource contents of the library
-  const aBufferList = [oLibPreloadFileContent].map(
-    oContent => new Buffer(oContent)
+  const aBufferList = [oLibPreloadFileContent].map(oContent =>
+    Buffer.from(oContent)
   )
   const sNewHash = _createHash(aBufferList, oOptions)
 
@@ -344,7 +346,7 @@ function _getAssetsHash(sResolvedModulePath, oOptions) {
   const aAssetContents = _readAllFiles(sResolvedModulePath)
 
   // generate hash based on resource contents
-  const aBufferList = aAssetContents.map(oContent => new Buffer(oContent))
+  const aBufferList = aAssetContents.map(oContent => Buffer.from(oContent))
   const sNewHash = _createHash(aBufferList, oOptions)
 
   return sNewHash
@@ -366,7 +368,7 @@ function _getThemeRootHash(sThemeRootPath, sThemeName, oOptions) {
   const aAssetContents = _readAllFiles(sThemeRootPath)
 
   // generate hash based on library CSS files in theme root
-  const aBufferList = aAssetContents.map(oContent => new Buffer(oContent))
+  const aBufferList = aAssetContents.map(oContent => Buffer.from(oContent))
   const sNewHash = _createHash(aBufferList, oOptions)
 
   return sNewHash
